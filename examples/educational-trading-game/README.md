@@ -1,13 +1,21 @@
 # Jeu pédagogique de trading (marché 100% fictif)
 
-Un petit jeu en ligne de commande pour **apprendre les bases du trading**
-(achat/vente, gestion du risque, stop-loss, diversification) **sans
-risquer un seul euro réel**.
+Un jeu en ligne de commande, avec une **interface stylée** (couleurs,
+panneaux, tableaux, barre de progression) grâce à la bibliothèque
+[`rich`](https://github.com/Textualize/rich), pour **apprendre les bases
+du trading** (achat/vente, gestion du risque, stop-loss, diversification)
+**sans risquer un seul euro réel**.
 
 > Aucune connexion à un vrai broker, aucune donnée de marché réelle : les
 > 5 actions et leurs prix sont entièrement fictifs et générés
 > aléatoirement. Ceci est un outil d'apprentissage, pas un conseil en
 > investissement, et ne garantit rien sur les marchés réels.
+
+## Installation
+
+```bash
+pip install -r requirements.txt
+```
 
 ## Lancer le jeu
 
@@ -45,6 +53,17 @@ Commandes disponibles à chaque tour :
 À la fin de la partie, un bilan récapitule votre performance et des
 leçons concrètes (avez-vous diversifié ? avez-vous utilisé un
 stop-loss ? etc.).
+
+## Interface
+
+Le jeu affiche :
+- un tableau de marché en couleur (vert ▲ pour une hausse, rouge ▼ pour
+  une baisse),
+- un panneau "Portefeuille" avec vos positions et votre performance,
+- une barre de progression indiquant l'avancement dans la partie,
+- des panneaux dédiés pour les actualités et les déclenchements de
+  stop-loss,
+- un bilan final coloré (vert si performance positive, rouge sinon).
 
 ## Ce que ce jeu illustre
 

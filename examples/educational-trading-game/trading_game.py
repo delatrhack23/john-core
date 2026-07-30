@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """
-Jeu pedagogique de trading en bourse (marche fictif).
+Jeu pedagogique de trading en bourse (marche fictif) - interface stylee
+avec la bibliotheque "rich" (panneaux, couleurs, tableaux).
 
 But: apprendre les bases du trading (achat/vente, gestion du risque,
 stop-loss, diversification) SANS RISQUER D'ARGENT REEL. Aucune connexion
 a un vrai broker, aucune vraie donnee de marche: tout est simule.
+
+Installation:
+    pip install -r requirements.txt
 
 Comment jouer:
     python3 trading_game.py
@@ -38,8 +42,51 @@ import argparse
 import random
 from dataclasses import dataclass, field
 
+try:
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+    from rich.text import Text
+    from rich.align import Align
+    from rich.box import ROUNDED, HEAVY
+    from rich.prompt import Prompt
+    from rich.console import Group
+except ImportError as exc:
+    raise SystemExit(
+        "La bibliotheque 'rich' est requise pour l'interface stylee de ce jeu.\n"
+        "Installez-la avec: pip install -r requirements.txt"
+    ) from exc
+
+
+ACCENT = "bright_magenta"
+ACCENT_DIM = "magenta"
+POSITIVE = "bright_green"
+NEGATIVE = "bright_red"
+NEUTRAL = "grey70"
 
 SPARK_CHARS = "▁▂▃▄▅▆▇█"
+
+console = Console()
+
+
+def money(value: float) -> str:
+    return f"{value:,.2f} EUR".replace(",", " ")
+
+
+def pct_style(value: float) -> str:
+    if value > 0:
+        return POSITIVE
+    if value < 0:
+        return NEGATIVE
+    return NEUTRAL
+
+
+def pct_arrow(value: float) -> str:
+    if value > 0:
+        return "▲"
+    if value < 0:
+        return "▼"
+    return "▬"
 
 
 @dataclass
@@ -135,34 +182,34 @@ class Player:
     def net_worth(self, market: dict[str, Stock]) -> float:
         return self.cash + sum(qty * market[t].price for t, qty in self.holdings.items())
 
-    def buy(self, market: dict[str, Stock], ticker: str, qty: int) -> str:
+    def buy(self, market: dict[str, Stock], ticker: str, qty: int) -> tuple[bool, str]:
         if ticker not in market:
-            return f"Ticker inconnu: {ticker}"
+            return False, f"Ticker inconnu : {ticker}"
         if qty <= 0:
-            return "Quantite invalide."
+            return False, "Quantite invalide."
         cost = market[ticker].price * qty
         if cost > self.cash:
-            return f"Fonds insuffisants (cout {cost:.2f} EUR, cash disponible {self.cash:.2f} EUR)."
+            return False, f"Fonds insuffisants (cout {money(cost)}, cash disponible {money(self.cash)})."
         self.cash -= cost
         self.holdings[ticker] = self.holdings.get(ticker, 0) + qty
         self.tickers_ever_held.add(ticker)
-        return f"Achete {qty} x {ticker} a {market[ticker].price:.2f} EUR (total {cost:.2f} EUR)."
+        return True, f"Achete {qty} x {ticker} a {money(market[ticker].price)} (total {money(cost)})."
 
-    def sell(self, market: dict[str, Stock], ticker: str, qty: int) -> str:
+    def sell(self, market: dict[str, Stock], ticker: str, qty: int) -> tuple[bool, str]:
         if ticker not in market:
-            return f"Ticker inconnu: {ticker}"
+            return False, f"Ticker inconnu : {ticker}"
         held = self.holdings.get(ticker, 0)
         if qty <= 0:
-            return "Quantite invalide."
+            return False, "Quantite invalide."
         if qty > held:
-            return f"Vous ne possedez que {held} x {ticker}."
+            return False, f"Vous ne possedez que {held} x {ticker}."
         revenue = market[ticker].price * qty
         self.cash += revenue
         self.holdings[ticker] -= qty
         if self.holdings[ticker] == 0:
             del self.holdings[ticker]
             self.stop_orders.pop(ticker, None)
-        return f"Vendu {qty} x {ticker} a {market[ticker].price:.2f} EUR (total {revenue:.2f} EUR)."
+        return True, f"Vendu {qty} x {ticker} a {money(market[ticker].price)} (total {money(revenue)})."
 
     def check_stop_orders(self, market: dict[str, Stock]) -> list[str]:
         messages = []
@@ -170,59 +217,152 @@ class Player:
             threshold = self.stop_orders[ticker]
             if ticker in self.holdings and market[ticker].price <= threshold:
                 qty = self.holdings[ticker]
-                msg = self.sell(market, ticker, qty)
+                _, msg = self.sell(market, ticker, qty)
                 self.used_stop_loss = True
-                messages.append(
-                    f"STOP-LOSS declenche sur {ticker} (seuil {threshold:.2f} EUR) -> {msg}"
-                )
+                messages.append(f"STOP-LOSS sur {ticker} (seuil {money(threshold)}) -> {msg}")
         return messages
 
 
-def print_header(day: int, total_days: int) -> None:
-    print("\n" + "=" * 60)
-    print(f" JOUR {day}/{total_days}")
-    print("=" * 60)
+def render_banner(days: int, starting_capital: float) -> None:
+    title = Text("◆ TRADING SIMULATOR ◆", style=f"bold {ACCENT}", justify="center")
+    subtitle = Text(
+        f"Marche 100% fictif  •  {days} jours de bourse  •  Capital de depart {money(starting_capital)}",
+        style=f"italic {NEUTRAL}",
+        justify="center",
+    )
+    console.print(
+        Panel(
+            Align.center(Text.assemble(title, "\n", subtitle)),
+            border_style=ACCENT,
+            box=HEAVY,
+            padding=(1, 4),
+        )
+    )
 
 
-def print_market(market: dict[str, Stock], previous_prices: dict[str, float]) -> None:
-    print(f"{'Ticker':<8}{'Nom':<16}{'Secteur':<14}{'Prix (EUR)':>12}{'Var.':>10}")
+def render_day_header(day: int, total_days: int) -> None:
+    progress = int((day / total_days) * 20)
+    bar = "█" * progress + "░" * (20 - progress)
+    header = Text.assemble(
+        ("JOUR ", f"bold {NEUTRAL}"),
+        (f"{day}", f"bold {ACCENT}"),
+        (f" / {total_days}   ", f"bold {NEUTRAL}"),
+        (bar, ACCENT_DIM),
+    )
+    console.print(Panel(header, border_style=ACCENT_DIM, box=ROUNDED, padding=(0, 2)))
+
+
+def render_news(headline: str) -> None:
+    console.print(
+        Panel(
+            Text(headline, style="bold yellow"),
+            title="[bold yellow]◆ ACTUALITE ◆[/bold yellow]",
+            border_style="yellow",
+            box=ROUNDED,
+        )
+    )
+
+
+def render_stop_loss_messages(messages: list[str]) -> None:
+    for message in messages:
+        console.print(Panel(Text(message, style=f"bold {NEGATIVE}"), border_style=NEGATIVE, box=ROUNDED))
+
+
+def render_market(market: dict[str, Stock], previous_prices: dict[str, float]) -> None:
+    table = Table(
+        title="[bold]Marche[/bold]", box=ROUNDED, border_style=ACCENT_DIM, header_style=f"bold {ACCENT}",
+        expand=True,
+    )
+    table.add_column("Ticker", style="bold white")
+    table.add_column("Nom")
+    table.add_column("Secteur", style=NEUTRAL)
+    table.add_column("Prix", justify="right")
+    table.add_column("Variation", justify="right")
+
     for ticker, stock in market.items():
         prev = previous_prices.get(ticker, stock.price)
         change_pct = (stock.price - prev) / prev * 100 if prev else 0.0
-        change_txt = f"{change_pct:+.2f}%"
-        print(
-            f"{ticker:<8}{stock.name:<16}{stock.sector:<14}"
-            f"{stock.price:>12.2f}{change_txt:>10}"
+        style = pct_style(change_pct)
+        change_txt = f"{pct_arrow(change_pct)} {change_pct:+.2f}%"
+        table.add_row(
+            ticker,
+            stock.name,
+            stock.sector,
+            money(stock.price),
+            Text(change_txt, style=style),
         )
+    console.print(table)
 
 
-def print_portfolio(player: Player, market: dict[str, Stock]) -> None:
-    print(f"\nCash disponible : {player.cash:.2f} EUR")
+def render_portfolio(player: Player, market: dict[str, Stock], starting_capital: float) -> None:
+    net_worth = player.net_worth(market)
+    total_return = (net_worth - starting_capital) / starting_capital * 100
+    style = pct_style(total_return)
+
+    table = Table(box=ROUNDED, border_style="cyan", header_style="bold cyan", expand=True)
+    table.add_column("Position", style="bold white")
+    table.add_column("Quantite", justify="right")
+    table.add_column("Valeur", justify="right")
+    table.add_column("Stop-loss", justify="right", style=NEGATIVE)
+
     if not player.holdings:
-        print("Positions        : aucune")
+        table.add_row("[dim]aucune position[/dim]", "-", "-", "-")
     else:
-        print("Positions:")
         for ticker, qty in player.holdings.items():
             value = qty * market[ticker].price
             stop = player.stop_orders.get(ticker)
-            stop_txt = f", stop-loss a {stop:.2f} EUR" if stop else ""
-            print(f"  {ticker}: {qty} actions -> {value:.2f} EUR{stop_txt}")
-    print(f"Valeur totale du portefeuille : {player.net_worth(market):.2f} EUR")
+            table.add_row(ticker, str(qty), money(value), money(stop) if stop else "-")
 
-
-def print_help() -> None:
-    print(
-        "\nCommandes disponibles :\n"
-        "  acheter TICKER QTE    (ou: buy)      -- acheter des actions\n"
-        "  vendre TICKER QTE     (ou: sell)      -- vendre des actions\n"
-        "  stop TICKER PRIX                      -- poser un stop-loss\n"
-        "  annulerstop TICKER                    -- annuler un stop-loss\n"
-        "  info TICKER                           -- details sur une action\n"
-        "  portefeuille          (ou: portfolio) -- voir son portefeuille\n"
-        "  aide                  (ou: help)      -- afficher cette aide\n"
-        "  suivant               (ou: next)      -- passer au jour suivant\n"
-        "  quitter               (ou: quit)      -- terminer la partie\n"
+    footer = Text.assemble(
+        ("Cash disponible : ", "bold white"), (money(player.cash), "white"),
+        ("   |   Valeur totale : ", "bold white"), (money(net_worth), "bold white"),
+        ("   (", NEUTRAL), (f"{pct_arrow(total_return)} {total_return:+.2f}%", f"bold {style}"), (")", NEUTRAL),
     )
+
+    console.print(
+        Panel(
+            Group(table, footer),
+            title="[bold cyan]◆ Portefeuille ◆[/bold cyan]",
+            border_style="cyan",
+            box=ROUNDED,
+        )
+    )
+
+
+def render_help() -> None:
+    table = Table(box=ROUNDED, border_style=ACCENT_DIM, header_style=f"bold {ACCENT}", show_header=True)
+    table.add_column("Commande", style="bold white")
+    table.add_column("Description")
+    rows = [
+        ("acheter TICKER QTE  (buy)", "Acheter des actions"),
+        ("vendre TICKER QTE  (sell)", "Vendre des actions"),
+        ("stop TICKER PRIX", "Poser un ordre stop-loss"),
+        ("annulerstop TICKER", "Annuler un stop-loss"),
+        ("info TICKER", "Details sur une action"),
+        ("portefeuille  (portfolio)", "Voir son portefeuille"),
+        ("aide  (help)", "Afficher cette aide"),
+        ("suivant  (next)", "Passer au jour suivant"),
+        ("quitter  (quit)", "Terminer la partie"),
+    ]
+    for cmd, desc in rows:
+        table.add_row(cmd, desc)
+    console.print(Panel(table, title=f"[bold {ACCENT}]◆ Commandes ◆[/bold {ACCENT}]", border_style=ACCENT))
+
+
+def render_info(stock: Stock) -> None:
+    body = Text.assemble(
+        (f"{stock.name} ", "bold white"), (f"({stock.ticker})\n", NEUTRAL),
+        ("Secteur     : ", "bold white"), (f"{stock.sector}\n", "white"),
+        ("Prix actuel : ", "bold white"), (f"{money(stock.price)}\n", "white"),
+        ("Volatilite  : ", "bold white"), (f"{stock.volatility_label()}\n", "white"),
+        ("Historique  : ", "bold white"), (stock.sparkline(), ACCENT),
+    )
+    console.print(Panel(body, border_style=ACCENT_DIM, box=ROUNDED))
+
+
+def render_feedback(success: bool, message: str) -> None:
+    style = POSITIVE if success else NEGATIVE
+    console.print(f"  [{style}]{'✔' if success else '✘'} {message}[/{style}]")
 
 
 def handle_command(command: str, player: Player, market: dict[str, Stock]) -> str | None:
@@ -237,115 +377,115 @@ def handle_command(command: str, player: Player, market: dict[str, Stock]) -> st
     if action in ("quitter", "quit", "exit"):
         return "quit"
     if action in ("aide", "help"):
-        print_help()
+        render_help()
         return None
     if action in ("portefeuille", "portfolio"):
-        print_portfolio(player, market)
-        return None
+        return "show_portfolio"
     if action in ("acheter", "buy") and len(parts) == 3:
         ticker, qty = parts[1].upper(), parts[2]
         if not qty.isdigit():
-            print("Quantite invalide.")
+            render_feedback(False, "Quantite invalide.")
             return None
-        print(player.buy(market, ticker, int(qty)))
+        render_feedback(*player.buy(market, ticker, int(qty)))
         return None
     if action in ("vendre", "sell") and len(parts) == 3:
         ticker, qty = parts[1].upper(), parts[2]
         if not qty.isdigit():
-            print("Quantite invalide.")
+            render_feedback(False, "Quantite invalide.")
             return None
-        print(player.sell(market, ticker, int(qty)))
+        render_feedback(*player.sell(market, ticker, int(qty)))
         return None
     if action == "stop" and len(parts) == 3:
         ticker = parts[1].upper()
         try:
             price = float(parts[2])
         except ValueError:
-            print("Prix invalide.")
+            render_feedback(False, "Prix invalide.")
             return None
         if ticker not in player.holdings:
-            print(f"Vous ne possedez pas {ticker}, impossible de poser un stop-loss.")
+            render_feedback(False, f"Vous ne possedez pas {ticker}, impossible de poser un stop-loss.")
             return None
         player.stop_orders[ticker] = price
-        print(f"Stop-loss pose sur {ticker} a {price:.2f} EUR.")
+        render_feedback(True, f"Stop-loss pose sur {ticker} a {money(price)}.")
         return None
     if action == "annulerstop" and len(parts) == 2:
         ticker = parts[1].upper()
         if player.stop_orders.pop(ticker, None) is not None:
-            print(f"Stop-loss annule sur {ticker}.")
+            render_feedback(True, f"Stop-loss annule sur {ticker}.")
         else:
-            print(f"Aucun stop-loss actif sur {ticker}.")
+            render_feedback(False, f"Aucun stop-loss actif sur {ticker}.")
         return None
     if action == "info" and len(parts) == 2:
         ticker = parts[1].upper()
         if ticker not in market:
-            print(f"Ticker inconnu: {ticker}")
+            render_feedback(False, f"Ticker inconnu : {ticker}")
             return None
-        stock = market[ticker]
-        print(
-            f"\n{stock.name} ({ticker}) - Secteur: {stock.sector}\n"
-            f"  Prix actuel     : {stock.price:.2f} EUR\n"
-            f"  Volatilite      : {stock.volatility_label()}\n"
-            f"  Historique      : {stock.sparkline()}\n"
-        )
+        render_info(market[ticker])
         return None
 
-    print("Commande non reconnue. Tapez 'aide' pour la liste des commandes.")
+    render_feedback(False, "Commande non reconnue. Tapez 'aide' pour la liste des commandes.")
     return None
 
 
-def print_summary(player: Player, market: dict[str, Stock], starting_capital: float) -> None:
+def render_summary(player: Player, market: dict[str, Stock], starting_capital: float) -> None:
     final_value = player.net_worth(market)
     total_return = (final_value - starting_capital) / starting_capital * 100
+    style = pct_style(total_return)
 
-    print("\n" + "#" * 60)
-    print("  FIN DE PARTIE - BILAN")
-    print("#" * 60)
-    print(f"Capital de depart      : {starting_capital:.2f} EUR")
-    print(f"Valeur finale           : {final_value:.2f} EUR")
-    print(f"Performance totale      : {total_return:+.2f} %")
+    header = Text.assemble(
+        ("Capital de depart : ", "bold white"), (f"{money(starting_capital)}\n", "white"),
+        ("Valeur finale     : ", "bold white"), (f"{money(final_value)}\n", "white"),
+        ("Performance       : ", "bold white"),
+        (f"{pct_arrow(total_return)} {total_return:+.2f}%", f"bold {style}"),
+    )
 
     if player.net_worth_history:
-        print(f"Evolution du capital    : {'[' + ' '.join(f'{v:.0f}' for v in player.net_worth_history[-10:]) + ']'}")
+        curve = " ".join(f"{v:,.0f}" for v in player.net_worth_history[-10:])
+        header.append(f"\nEvolution (10 derniers jours) : [{curve}]", style=NEUTRAL)
 
-    print("\nLecons de cette partie :")
+    lessons = Table.grid(padding=(0, 1))
+    lessons.add_column()
+
     if len(player.tickers_ever_held) == 0:
-        print("  - Vous n'avez rien achete : impossible de faire fructifier un capital")
-        print("    en le laissant simplement en cash (mais aussi impossible de le perdre !).")
+        lessons.add_row("• Vous n'avez rien achete : impossible de faire fructifier un capital laisse en cash.")
     elif len(player.tickers_ever_held) == 1:
-        print("  - Vous avez surtout mise sur une seule action : rappelez-vous que la")
-        print("    diversification reduit le risque de tout perdre sur un seul pari.")
+        lessons.add_row("• Vous avez surtout mise sur une seule action : la diversification reduit le risque.")
     else:
-        print(f"  - Vous avez diversifie sur {len(player.tickers_ever_held)} actions differentes, bravo.")
+        lessons.add_row(f"• Vous avez diversifie sur {len(player.tickers_ever_held)} actions differentes, bravo.")
 
     if player.used_stop_loss:
-        print("  - Vous avez utilise un stop-loss : c'est exactement le reflexe qui")
-        print("    protege un vrai portefeuille contre les grosses pertes.")
+        lessons.add_row("• Vous avez utilise un stop-loss : ce reflexe protege un vrai portefeuille des grosses pertes.")
     else:
-        print("  - Vous n'avez jamais utilise de stop-loss. Sur un vrai marche, cela")
-        print("    peut transformer une petite perte en perte catastrophique.")
+        lessons.add_row("• Vous n'avez jamais utilise de stop-loss, ce qui expose a des pertes plus importantes.")
 
     if total_return < 0:
-        print("  - Performance negative : c'est normal et frequent, meme pour des")
-        print("    traders experimentes. L'important est d'apprendre de chaque partie.")
+        lessons.add_row("• Performance negative : frequent, meme chez des traders experimentes. On apprend en jouant.")
     elif total_return == 0:
-        print("  - Performance neutre : vous n'avez ni gagne ni perdu, essayez de")
-        print("    prendre plus (ou moins) de risques pour voir l'effet sur le resultat.")
+        lessons.add_row("• Performance neutre : essayez de prendre plus (ou moins) de risques la prochaine fois.")
     else:
-        print("  - Performance positive : attention cependant, une seule partie gagnante")
-        print("    ne prouve pas qu'une strategie est fiable sur le long terme.")
+        lessons.add_row("• Performance positive : une seule partie gagnante ne prouve pas qu'une strategie est fiable.")
 
-    print("\nRappel : ceci est une simulation. Les vrais marches financiers")
-    print("comportent un risque reel de perte en capital.")
+    console.print(
+        Panel(
+            Text.assemble(header, "\n\n", Text("Lecons de cette partie :\n", style=f"bold {ACCENT}")),
+            title=f"[bold {style}]◆ FIN DE PARTIE - BILAN ◆[/bold {style}]",
+            border_style=style,
+            box=HEAVY,
+        )
+    )
+    console.print(lessons)
+    console.print(
+        "\n[dim italic]Rappel : ceci est une simulation. Les vrais marches financiers "
+        "comportent un risque reel de perte en capital.[/dim italic]\n"
+    )
 
 
 def play(days: int, starting_capital: float, seed: int | None) -> None:
     market = build_market(seed)
     player = Player(cash=starting_capital)
 
-    print("=== Jeu pedagogique de trading (marche 100% fictif) ===")
-    print(f"Capital de depart : {starting_capital:.2f} EUR sur {days} jours de bourse.")
-    print_help()
+    render_banner(days, starting_capital)
+    render_help()
 
     for day in range(1, days + 1):
         previous_prices = {t: s.price for t, s in market.items()}
@@ -355,31 +495,35 @@ def play(days: int, starting_capital: float, seed: int | None) -> None:
                 stock.step()
             headline = maybe_trigger_news(market)
             if headline:
-                print(f"\n[ACTUALITE] {headline}")
+                render_news(headline)
 
-        for message in player.check_stop_orders(market):
-            print(message)
+        stop_messages = player.check_stop_orders(market)
+        if stop_messages:
+            render_stop_loss_messages(stop_messages)
 
-        print_header(day, days)
-        print_market(market, previous_prices)
-        print_portfolio(player, market)
+        render_day_header(day, days)
+        render_market(market, previous_prices)
+        render_portfolio(player, market, starting_capital)
 
         while True:
             try:
-                command = input("\n> ")
+                command = Prompt.ask(f"[bold {ACCENT}]➤[/bold {ACCENT}]")
             except EOFError:
                 command = "quitter"
             result = handle_command(command, player, market)
+            if result == "show_portfolio":
+                render_portfolio(player, market, starting_capital)
+                continue
             if result == "next":
                 break
             if result == "quit":
                 player.net_worth_history.append(player.net_worth(market))
-                print_summary(player, market, starting_capital)
+                render_summary(player, market, starting_capital)
                 return
 
         player.net_worth_history.append(player.net_worth(market))
 
-    print_summary(player, market, starting_capital)
+    render_summary(player, market, starting_capital)
 
 
 def parse_args() -> argparse.Namespace:
@@ -399,7 +543,7 @@ def main() -> None:
     try:
         play(args.days, args.capital, args.seed)
     except KeyboardInterrupt:
-        print("\nPartie interrompue.")
+        console.print("\n[dim]Partie interrompue.[/dim]")
 
 
 if __name__ == "__main__":
