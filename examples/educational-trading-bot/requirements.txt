@@ -1,0 +1,4 @@
+# Optionnel : uniquement necessaire si vous utilisez --source yfinance
+# pour telecharger de vraies donnees boursieres historiques.
+# Les sources "synthetic" et "csv" ne necessitent aucune dependance.
+yfinance>=0.2
