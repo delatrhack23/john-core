@@ -48,6 +48,33 @@ python3 sniper_bot_simulator.py --launches 2000 --trade-size 1 --seed 42
 python3 sniper_bot_simulator.py --launches 500 --fee-rate 0.03
 ```
 
+## Version "en direct" : ZACHXBTBOT
+
+`live_sniper_bot.py` recree l'expérience complète d'un vrai bot de
+sniping "en direct", mais entièrement simulée :
+
+```bash
+python3 live_sniper_bot.py
+python3 live_sniper_bot.py --max-launches 30 --seed 42
+python3 live_sniper_bot.py --fast          # enchaine les lancements plus vite
+python3 live_sniper_bot.py --max-launches 0 # tourne en continu (Ctrl+C pour arreter)
+```
+
+Tape simplement Entrée pour lancer la surveillance. Le bot va ensuite :
+
+1. Afficher une **alerte** à chaque "nouveau token" détecté, avec un
+   lien **fictif** (`[SIMULATION] axiom.SIMULE/...`, jamais un vrai lien
+   Axiom/Solana) et ses statistiques de risque.
+2. **Décider automatiquement** d'investir 1 SOL (fictif) ou d'ignorer le
+   token, selon le même filtre de sécurité que la version précédente.
+3. **Suivre le prix en direct** (affiché tick par tick) puis vendre
+   automatiquement.
+4. Afficher un **portefeuille cumulé** qui évolue au fil des trades.
+
+C'est exactement l'expérience d'un bot de sniping réel — surveillance,
+alerte, décision automatique, achat/vente — mais sans jamais toucher à
+un vrai wallet, un vrai token, ou un centime réel.
+
 ## Ce que les résultats montrent généralement
 
 - Le **bot intelligent** a un taux de rug pull instantané bien plus bas
