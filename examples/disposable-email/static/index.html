@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Éphémère — e-mail jetable</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #10140f;
+      --paper: #efe7d4;
+      --ticket: #f7f1e3;
+      --lime: #d6ff4b;
+      --lime-dim: #b6d63a;
+      --moss: #3f5c3a;
+      --stamp: #c4492c;
+      --mute: #6d7268;
+      --line: rgba(16, 20, 15, 0.14);
+      --shadow: 0 18px 50px rgba(16, 20, 15, 0.28);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: Outfit, system-ui, sans-serif;
+      color: var(--paper);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, #2a3a24 0%, transparent 55%),
+        radial-gradient(900px 500px at 110% 10%, #3a2418 0%, transparent 50%),
+        var(--ink);
+      letter-spacing: 0.01em;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image: radial-gradient(rgba(214, 255, 75, 0.05) 0.8px, transparent 0.8px);
+      background-size: 18px 18px;
+      mask-image: linear-gradient(180deg, rgba(0,0,0,0.5), transparent 80%);
+    }
+
+    .wrap {
+      width: min(1080px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 80px;
+    }
+
+    header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .brand {
+      font-family: Fraunces, Georgia, serif;
+      font-size: clamp(2.1rem, 5vw, 3.4rem);
+      font-weight: 700;
+      margin: 0;
+      letter-spacing: -0.03em;
+    }
+
+    .brand span { color: var(--lime); }
+
+    .tag {
+      color: #c9c3b3;
+      max-width: 36ch;
+      margin: 0;
+      font-size: 0.95rem;
+      line-height: 1.45;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+      gap: 22px;
+    }
+
+    .ticket {
+      background: var(--ticket);
+      color: var(--ink);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+      min-height: 340px;
+    }
+
+    .ticket::before,
+    .ticket::after {
+      content: "";
+      position: absolute;
+      width: 28px;
+      height: 28px;
+      background: var(--ink);
+      border-radius: 50%;
+      top: 168px;
+    }
+    .ticket::before { left: -14px; }
+    .ticket::after { right: -14px; }
+
+    .ticket-top {
+      padding: 22px 24px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px dashed var(--line);
+    }
+
+    .kicker {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--moss);
+      font-weight: 600;
+    }
+
+    .stamp-mark {
+      border: 2px solid var(--stamp);
+      color: var(--stamp);
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.12em;
+      padding: 4px 8px;
+      transform: rotate(-8deg);
+      text-transform: uppercase;
+    }
+
+    .ticket-body { padding: 22px 24px 18px; }
+
+    .address {
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: clamp(1.05rem, 2.4vw, 1.45rem);
+      word-break: break-all;
+      margin: 8px 0 18px;
+      min-height: 2.4em;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      font-size: 0.86rem;
+    }
+
+    .meta dt { color: var(--mute); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.12em; }
+    .meta dd { margin: 4px 0 0; font-family: "IBM Plex Mono", ui-monospace, monospace; }
+
+    .controls {
+      padding: 0 24px 22px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    button, select, input {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      background: var(--ink);
+      color: var(--lime);
+      padding: 10px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button.secondary {
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+
+    button:disabled { opacity: 0.45; cursor: wait; }
+
+    .composer {
+      background: rgba(247, 241, 227, 0.06);
+      border: 1px solid rgba(239, 231, 212, 0.12);
+      border-radius: 18px;
+      padding: 18px;
+    }
+
+    label { display: block; font-size: 0.78rem; color: #c9c3b3; margin-bottom: 6px; }
+
+    input, select {
+      width: 100%;
+      background: rgba(16, 20, 15, 0.45);
+      color: var(--paper);
+      border: 1px solid rgba(239, 231, 212, 0.16);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+    }
+
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    .status {
+      min-height: 1.3em;
+      font-size: 0.88rem;
+      color: #c9c3b3;
+    }
+
+    .status.error { color: #ffb4a2; }
+
+    .inbox {
+      margin-top: 22px;
+      background: rgba(247, 241, 227, 0.05);
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid rgba(239, 231, 212, 0.1);
+    }
+
+    .inbox-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 18px;
+      border-bottom: 1px solid rgba(239, 231, 212, 0.1);
+    }
+
+    .count {
+      background: var(--lime);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+
+    .empty, .message {
+      padding: 16px 18px;
+    }
+
+    .empty { color: #a8a496; }
+
+    .message {
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      color: inherit;
+      border-radius: 0;
+      border-bottom: 1px solid rgba(239, 231, 212, 0.08);
+      display: grid;
+      grid-template-columns: 10px 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--lime);
+      margin-top: 7px;
+    }
+
+    .dot.seen { background: #6d7268; }
+
+    .from { font-weight: 600; }
+    .subject { color: #e7e1d0; margin-top: 2px; }
+    .when { color: #8d8a7c; font-size: 0.78rem; margin-top: 4px; font-family: "IBM Plex Mono", ui-monospace, monospace; }
+
+    dialog {
+      border: 0;
+      border-radius: 16px;
+      width: min(720px, 92vw);
+      padding: 0;
+      background: var(--ticket);
+      color: var(--ink);
+    }
+
+    dialog::backdrop { background: rgba(8, 10, 7, 0.72); }
+
+    .letter { padding: 22px 24px 28px; }
+    .letter pre {
+      white-space: pre-wrap;
+      font-family: Outfit, system-ui, sans-serif;
+      line-height: 1.5;
+    }
+
+    iframe.preview {
+      width: 100%;
+      min-height: 280px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: white;
+    }
+
+    footer {
+      margin-top: 28px;
+      color: #8d8a7c;
+      font-size: 0.82rem;
+      max-width: 70ch;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 840px) {
+      .layout, .row, .meta { grid-template-columns: 1fr; }
+      header { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1 class="brand">Éphé<span>mère</span></h1>
+      <p class="tag">Une adresse temporaire pour recevoir un code, un lien, puis disparaître. Rien n’est créé chez Gmail, Outlook ou Yahoo.</p>
+    </header>
+
+    <div class="layout">
+      <section class="ticket" aria-label="Billet d'adresse">
+        <div class="ticket-top">
+          <div class="kicker">Correspondance temporaire</div>
+          <div class="stamp-mark" id="stamp">en attente</div>
+        </div>
+        <div class="ticket-body">
+          <div class="kicker">Adresse</div>
+          <div class="address" id="address">— génère un billet pour commencer —</div>
+          <dl class="meta">
+            <div>
+              <dt>Fournisseur</dt>
+              <dd id="provider">—</dd>
+            </div>
+            <div>
+              <dt>Domaine</dt>
+              <dd id="domain">—</dd>
+            </div>
+          </dl>
+        </div>
+        <div class="controls">
+          <button id="copyBtn" type="button" disabled>Copier</button>
+          <button id="refreshBtn" class="secondary" type="button" disabled>Actualiser</button>
+          <button id="dropBtn" class="secondary" type="button" disabled>Jeter la boîte</button>
+        </div>
+      </section>
+
+      <section class="composer">
+        <label for="local">Préfixe (optionnel)</label>
+        <input id="local" placeholder="ex. demo-projet" autocomplete="off" spellcheck="false">
+        <div class="row">
+          <div>
+            <label for="providerSelect">Fournisseur</label>
+            <select id="providerSelect">
+              <option value="">Automatique</option>
+              <option value="mailtm">mail.tm</option>
+              <option value="1secmail">1secmail</option>
+            </select>
+          </div>
+          <div>
+            <label for="domainSelect">Domaine</label>
+            <select id="domainSelect">
+              <option value="">Premier disponible</option>
+            </select>
+          </div>
+        </div>
+        <button id="generateBtn" type="button">Nouvelle adresse</button>
+        <p class="status" id="status">Prêt.</p>
+      </section>
+    </div>
+
+    <section class="inbox">
+      <div class="inbox-head">
+        <strong>Boîte de réception</strong>
+        <span class="count" id="count">0</span>
+      </div>
+      <div id="messages">
+        <div class="empty">Aucun message. Envoie un mail à l’adresse du billet, puis actualise.</div>
+      </div>
+    </section>
+
+    <footer>
+      Éphémère s’appuie sur des API publiques d’e-mail temporaire. Les messages sont hébergés chez le fournisseur choisi et peuvent être lus par quiconque connaît l’adresse. Ne l’utilise pas pour un compte bancaire, un réseau social durable, ou toute donnée sensible.
+    </footer>
+  </div>
+
+  <dialog id="letter">
+    <div class="letter">
+      <div class="kicker" id="letterFrom"></div>
+      <h2 id="letterSubject" style="font-family: Fraunces, Georgia, serif; margin: 8px 0 6px;"></h2>
+      <div class="when" id="letterDate"></div>
+      <div id="letterBody" style="margin-top: 18px;"></div>
+      <div class="controls" style="padding: 18px 0 0;">
+        <button id="closeLetter" class="secondary" type="button">Fermer</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script>
+    const state = {
+      mailbox: null,
+      timer: null,
+    };
+
+    const $ = (id) => document.getElementById(id);
+
+    function setStatus(text, isError = false) {
+      const node = $("status");
+      node.textContent = text;
+      node.classList.toggle("error", isError);
+    }
+
+    function headers() {
+      if (!state.mailbox) return { "Content-Type": "application/json" };
+      return {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + state.mailbox.token,
+        "X-Mailbox-Address": state.mailbox.address,
+        "X-Mailbox-Provider": state.mailbox.provider,
+        "X-Mailbox-Local": state.mailbox.local,
+        "X-Mailbox-Domain": state.mailbox.domain,
+        "X-Mailbox-Password": state.mailbox.password || "",
+        "X-Mailbox-Id": state.mailbox.account_id || "",
+      };
+    }
+
+    async function api(path, options = {}) {
+      const response = await fetch(path, { ...options, headers: { ...headers(), ...(options.headers || {}) } });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || ("HTTP " + response.status));
+      }
+      return data;
+    }
+
+    function paintMailbox() {
+      const box = state.mailbox;
+      const ready = Boolean(box);
+      $("address").textContent = ready ? box.address : "— génère un billet pour commencer —";
+      $("provider").textContent = ready ? box.provider : "—";
+      $("domain").textContent = ready ? box.domain : "—";
+      $("stamp").textContent = ready ? "valable maintenant" : "en attente";
+      $("copyBtn").disabled = !ready;
+      $("refreshBtn").disabled = !ready;
+      $("dropBtn").disabled = !ready;
+    }
+
+    function renderMessages(items) {
+      $("count").textContent = String(items.length);
+      const root = $("messages");
+      if (!items.length) {
+        root.innerHTML = '<div class="empty">Boîte vide — en attente d’un premier pli.</div>';
+        return;
+      }
+      root.innerHTML = "";
+      items.forEach((item) => {
+        const btn = document.createElement("button");
+        btn.className = "message";
+        btn.type = "button";
+        btn.innerHTML =
+          '<span class="dot' + (item.seen ? " seen" : "") + '"></span>' +
+          '<span><div class="from"></div><div class="subject"></div><div class="when"></div></span>';
+        btn.querySelector(".from").textContent = item.sender || "expéditeur inconnu";
+        btn.querySelector(".subject").textContent = item.subject || "(sans objet)";
+        btn.querySelector(".when").textContent = item.created_at || "";
+        btn.addEventListener("click", () => openMessage(item.id));
+        root.appendChild(btn);
+      });
+    }
+
+    async function loadDomains() {
+      try {
+        const data = await api("/api/domains");
+        const select = $("domainSelect");
+        const chosenProvider = $("providerSelect").value;
+        const domains = chosenProvider && data[chosenProvider]
+          ? data[chosenProvider]
+          : [...(data.mailtm || []), ...(data["1secmail"] || [])];
+        select.innerHTML = '<option value="">Premier disponible</option>';
+        [...new Set(domains)].forEach((domain) => {
+          if (!domain || domain.startsWith("erreur")) return;
+          const option = document.createElement("option");
+          option.value = domain;
+          option.textContent = domain;
+          select.appendChild(option);
+        });
+      } catch (err) {
+        setStatus(err.message, true);
+      }
+    }
+
+    async function generate() {
+      $("generateBtn").disabled = true;
+      setStatus("Création de la boîte…");
+      try {
+        const mailbox = await api("/api/accounts", {
+          method: "POST",
+          body: JSON.stringify({
+            local: $("local").value.trim() || null,
+            domain: $("domainSelect").value || null,
+            provider: $("providerSelect").value || null,
+          }),
+        });
+        state.mailbox = mailbox;
+        localStorage.setItem("ephemere-mailbox", JSON.stringify(mailbox));
+        paintMailbox();
+        renderMessages([]);
+        setStatus("Adresse prête. Surveille la boîte.");
+        startPolling();
+        await refreshInbox();
+      } catch (err) {
+        setStatus(err.message, true);
+      } finally {
+        $("generateBtn").disabled = false;
+      }
+    }
+
+    async function refreshInbox() {
+      if (!state.mailbox) return;
+      try {
+        const items = await api("/api/messages");
+        renderMessages(items);
+        setStatus("Boîte actualisée · " + new Date().toLocaleTimeString("fr-FR"));
+      } catch (err) {
+        setStatus(err.message, true);
+      }
+    }
+
+    async function openMessage(id) {
+      try {
+        const message = await api("/api/messages/" + encodeURIComponent(id));
+        $("letterFrom").textContent = message.sender || "";
+        $("letterSubject").textContent = message.subject || "(sans objet)";
+        $("letterDate").textContent = message.created_at || "";
+        const body = $("letterBody");
+        body.innerHTML = "";
+        if (message.html) {
+          const frame = document.createElement("iframe");
+          frame.className = "preview";
+          frame.sandbox = "";
+          frame.srcdoc = message.html;
+          body.appendChild(frame);
+        } else {
+          const pre = document.createElement("pre");
+          pre.textContent = message.text || "(message vide)";
+          body.appendChild(pre);
+        }
+        $("letter").showModal();
+      } catch (err) {
+        setStatus(err.message, true);
+      }
+    }
+
+    async function dropMailbox() {
+      if (!state.mailbox) return;
+      try {
+        await api("/api/accounts", { method: "DELETE" });
+      } catch (err) {
+        setStatus(err.message, true);
+      }
+      stopPolling();
+      state.mailbox = null;
+      localStorage.removeItem("ephemere-mailbox");
+      paintMailbox();
+      renderMessages([]);
+      setStatus("Boîte jetée.");
+    }
+
+    async function copyAddress() {
+      if (!state.mailbox) return;
+      try {
+        await navigator.clipboard.writeText(state.mailbox.address);
+        setStatus("Adresse copiée.");
+      } catch (err) {
+        setStatus("Impossible de copier : " + err.message, true);
+      }
+    }
+
+    function startPolling() {
+      stopPolling();
+      state.timer = setInterval(refreshInbox, 5000);
+    }
+
+    function stopPolling() {
+      if (state.timer) {
+        clearInterval(state.timer);
+        state.timer = null;
+      }
+    }
+
+    $("generateBtn").addEventListener("click", generate);
+    $("copyBtn").addEventListener("click", copyAddress);
+    $("refreshBtn").addEventListener("click", refreshInbox);
+    $("dropBtn").addEventListener("click", dropMailbox);
+    $("closeLetter").addEventListener("click", () => $("letter").close());
+    $("providerSelect").addEventListener("change", loadDomains);
+
+    (async function boot() {
+      paintMailbox();
+      await loadDomains();
+      const saved = localStorage.getItem("ephemere-mailbox");
+      if (!saved) return;
+      try {
+        const mailbox = JSON.parse(saved);
+        const restored = await api("/api/session", {
+          method: "POST",
+          body: JSON.stringify(mailbox),
+        });
+        state.mailbox = restored;
+        paintMailbox();
+        startPolling();
+        await refreshInbox();
+        setStatus("Session restaurée.");
+      } catch (err) {
+        localStorage.removeItem("ephemere-mailbox");
+        setStatus("Ancienne session expirée. Crée une nouvelle adresse.");
+      }
+    })();
+  </script>
+</body>
+</html>
