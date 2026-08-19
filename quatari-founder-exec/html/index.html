@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>Quatari Founder Exec</title>
+</head>
+<body>
+    <div id="app" class="hidden">
+        <section class="panel">
+            <header class="header">
+                <div>
+                    <p class="eyebrow" id="serverName">Quatari</p>
+                    <h1>Console fondateur</h1>
+                </div>
+                <div class="header-actions">
+                    <span id="permBadge" class="badge deny">Verification...</span>
+                    <button id="closeBtn" type="button" aria-label="Fermer">Esc</button>
+                </div>
+            </header>
+
+            <div class="toolbar">
+                <div class="targets" role="tablist">
+                    <button id="targetServer" class="target active" type="button" data-target="server">Serveur</button>
+                    <button id="targetClient" class="target" type="button" data-target="client">Client</button>
+                </div>
+                <p class="hint">Lua execute uniquement si tu as <code>quatari.founder</code>. Le serveur valide chaque requete.</p>
+            </div>
+
+            <label class="sr-only" for="code">Code Lua</label>
+            <textarea id="code" spellcheck="false" placeholder="print('Quatari')"></textarea>
+
+            <div class="footer">
+                <button id="runBtn" type="button">Executer</button>
+                <p class="status" id="status">Pret.</p>
+            </div>
+
+            <pre id="output" class="output"></pre>
+        </section>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
